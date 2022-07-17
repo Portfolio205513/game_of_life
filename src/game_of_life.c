@@ -271,7 +271,7 @@ int input_field_file(int **buffer, int rows, int columns, char *path) {
                 }
             }
         }
-    trash = fgetc(file);
+    int trash = fgetc(file);
 
     while (trash == ' ' || trash == '\t')
         trash = fgetc(file);

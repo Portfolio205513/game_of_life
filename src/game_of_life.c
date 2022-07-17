@@ -3,11 +3,10 @@
 #include <fcntl.h>
 #include <termios.h>
 #include <time.h>
-#include <unistd.h>
 
 int check_cell(int **field, int rows, int columns, int i, int j);
-int update_field (int **field, int rows, int columns);
-void print_field(int **field, int rows, int columns);
+int **update_field(int **field, int rows, int columns, int *alive);
+void print_field(int **field, int rows, int columns, int alive);
 void free_m(int **a, int rows);
 int input_field(int **buffer, int rows, int columns);
 int input_field_file(int **buffer, int rows, int columns, char *path);
@@ -39,7 +38,7 @@ int main (int argc, char **argv) {
             game(field, rows, columns);
             to_canon();
         }
-        
+
         free_m(field, rows);
     } else {
         printf("Enter matrix 25*80\n");
@@ -65,15 +64,17 @@ void game(int **field, int rows, int columns) {
     start = clock();
 
     while (1) {
+        int alive = 0;
 
         if ((speed != -1.0125 && (double) (clock() - start) / CLOCKS_PER_SEC >= speed * step) || (speed == -1.0125 && (input == 61 || input == 43))) {
-            if (update_field(field, rows, columns) == 1){
-                print_field(field, rows, columns);
+            field = update_field(field, rows, columns, &alive);
+            if (alive == 0){
+                print_field(field, rows, columns, alive);
                 printf("end of game\n");
                 break;
             }
 
-            print_field(field, rows, columns);
+            print_field(field, rows, columns, alive);
             start = clock();
         }
 
@@ -103,8 +104,8 @@ void to_canon() {
     tcsetattr(0, TCSAFLUSH, &saved_attributes);
 }
 
-int update_field(int **field, int rows, int columns) {
-    int flag = 1;
+int **update_field(int **field, int rows, int columns, int *alive) {
+    *alive = 0;
     int ** new_field = calloc(rows, sizeof(int *));
 
     for (int i = 0; i < rows; i++)
@@ -114,18 +115,13 @@ int update_field(int **field, int rows, int columns) {
         for (int j =  0; j < columns; j++) {
             new_field[i][j] = check_cell(field, rows, columns, i, j);
             if (new_field[i][j] == 1)
-                flag = 0;
+                (*alive)++;
         }
     }
 
-    for (int i = 0; i < rows; i++){
-        free(field[i]);
-        field[i] = new_field[i];
-    }
+    free_m(field, rows);
 
-    free(new_field);
-
-    return flag;
+    return new_field;
 }
 
 int module(int coordinate, int size){
@@ -134,8 +130,8 @@ int module(int coordinate, int size){
     } else {
         coordinate = size + (coordinate % size);
     }
-    return coordinate;
 
+    return coordinate;
 }
 
 int check_cell(int **field, int rows, int columns, int i, int j) {
@@ -177,8 +173,13 @@ int check_cell(int **field, int rows, int columns, int i, int j) {
     return ans;
 }
 
-void print_field(int **field, int rows, int columns) {
+void print_field(int **field, int rows, int columns, int alive) {
     printf("\033[2J");
+
+    for (int i = 0; i < 38; i++)
+        printf(" ");
+
+    printf("ALIFE:%d\n", alive);
 
     for (int i = 0; i < rows+2; i++) {
         for (int j = 0; j < columns+2; j++){
@@ -196,7 +197,7 @@ void print_field(int **field, int rows, int columns) {
 }
 
 int ** matrix_init(int rows, int columns, char *path) {
-    int **pointers_matrix = NULL;
+    int **pointers_matrix;
 
     pointers_matrix = malloc(rows * sizeof(int *));
 
@@ -249,37 +250,6 @@ int input_field(int **buffer, int rows, int columns) {
     return flag;
 }
 
-char *readline_() {
-    char buf[81] = {0};
-    char *res = NULL;
-    int len = 0;
-    int n = 0;
-
-    do {
-        n = scanf("%80[^\n]", buf);
-        if (n < 0) {
-            if (!res) {
-                return NULL;
-            }
-        } else if (n > 0) {
-            int chunk_len = (int) strlen_(buf);
-            int str_len = len + chunk_len;
-            res = realloc(res, str_len + 1);
-            memcpy_(res + len, buf, chunk_len);
-            len = str_len;
-        } else {
-            scanf("%*c");
-        }
-    } while (n > 0);
-
-    if (len > 0) {
-        res[len] = '\0';
-    } else {
-        res = calloc(1, sizeof(char));
-    }
-    return res;
-}
-
 int input_field_file(int **buffer, int rows, int columns, char *path) {
     int flag, trash;
     FILE *file;
@@ -315,67 +285,4 @@ int input_field_file(int **buffer, int rows, int columns, char *path) {
     fclose(file);
 
     return flag;
-}
-
-int strlen_(char *str){
-    int i = 0;
-
-    while (str[i] != EOF) {
-        i++;
-    }
-
-    return i;
-}
-
-void memcpy_(char *dest, const char *source, size_t count){
-    for(size_t i = 0; i < count; i++){
-        dest[i] = source[i];
-    }
-}
-
-char *freadline_(FILE *file){
-    char buf[81] = {0};
-    char *res = NULL;
-    int len = 0;
-    int n = 0;
-
-    do {
-        n = fscanf(file, "%80[^\n]", buf);
-        if (n < 0) {
-            if (!res) {
-                return NULL;
-            }
-        } else if (n > 0) {
-            int chunk_len = (int) strlen_(buf);
-            int str_len = len + chunk_len;
-            res = realloc(res, str_len + 1);
-            memcpy_(res + len, buf, chunk_len);
-            len = str_len;
-        } else {
-            fscanf(file, "%*c");
-        }
-    } while (n > 0);
-
-    if (len > 0) {
-        res[len] = '\0';
-    } else {
-        res = calloc(1, sizeof(char));
-    }
-    return res;
-}
-
-void output(int **buffer, int rows, int columns) {
-    for (int i = 0; i < rows - 1; i++) {
-        printf("%d", buffer[i][0]);
-
-        for (int j = 1; j < columns; j++)
-            printf(" %d", buffer[i][j]);
-
-        printf("\n");
-    }
-
-    printf("%d", buffer[rows - 1][0]);
-
-    for (int j = 1; j < columns; j++)
-        printf(" %d", buffer[rows - 1][j]);
 }
